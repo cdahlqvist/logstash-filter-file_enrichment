@@ -106,6 +106,7 @@ class LogStash::Filters::FileEnrichment < LogStash::Filters::Base
         else
           begin
             new_dictionary[k[0]] = JSON.parse(k[1])
+            linenum += 1
           rescue JSON::ParserError
             @logger.error("Error parsing JSON on line number #{linenum}: #{line}", :path => @dictionary_path)
             f.close()
@@ -115,7 +116,8 @@ class LogStash::Filters::FileEnrichment < LogStash::Filters::Base
       end
 
       f.close()
-      @logger.info("Loaded dictionary file containing #{linenum} entries.", :path => @dictionary_path)
+      entries = linenum - 1
+      @logger.info("Loaded dictionary file containing #{entries} entries.", :path => @dictionary_path)
       @dictionary = new_dictionary
     end
 
@@ -149,9 +151,11 @@ class LogStash::Filters::FileEnrichment < LogStash::Filters::Base
         if File.exists?(@dictionary_path) 
           cs = calculate_dictionary_file_checksum()
           if @checksum == cs
-            @logger.info("Dictionary file checksum has not changed. Check again in #{refresh_interval} seconds.", :path => @dictionary_path)
+            @logger.info("Dictionary file checksum #{cs} has not changed. Check again in #{refresh_interval} seconds.", :path => @dictionary_path)
           else
+            @logger.info("Dictionary file checksum changed from #{@checksum}to #{cs}. Reload.", :path => @dictionary_path)
             load_dictionary_file(false)
+            @checksum = cs
           end
         else
           @logger.error("Dictionary file not found, continuing with existing dictionary", :path => @dictionary_path)
